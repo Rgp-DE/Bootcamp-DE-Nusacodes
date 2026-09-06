@@ -1,0 +1,155 @@
+services:
+
+  postgres:
+    image: postgres:16
+    container_name: olist-postgres
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U airflow -d airflow"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:latest
+    container_name: olist-clickhouse
+    environment:
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
+      CLICKHOUSE_DB: ${CLICKHOUSE_DATABASE}
+    ports:
+      - "8123:8123"
+      - "9000:9000"
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget --spider -q http://localhost:8123/ping || exit 1"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  airflow-init:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: olist-airflow-init
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+    environment: &airflow-common-env
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+
+      AIRFLOW__CORE__EXECUTION_API_SERVER_URL: >-
+        http://airflow-apiserver:8080/execution/
+
+      AIRFLOW__API_AUTH__JWT_SECRET: ${AIRFLOW_JWT_SECRET}
+      AIRFLOW__API__SECRET_KEY: ${AIRFLOW_API_SECRET_KEY}
+
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: >-
+        postgresql+psycopg2://airflow:airflow@postgres/airflow
+
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+
+      _AIRFLOW_DB_MIGRATE: "true"
+      _AIRFLOW_WWW_USER_CREATE: "true"
+      _AIRFLOW_WWW_USER_USERNAME: ${AIRFLOW_ADMIN_USER}
+      _AIRFLOW_WWW_USER_PASSWORD: ${AIRFLOW_ADMIN_PASSWORD}
+
+      CLICKHOUSE_HOST: ${CLICKHOUSE_HOST}
+      CLICKHOUSE_HTTP_PORT: ${CLICKHOUSE_HTTP_PORT}
+      CLICKHOUSE_NATIVE_PORT: ${CLICKHOUSE_NATIVE_PORT}
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
+      CLICKHOUSE_DATABASE: ${CLICKHOUSE_DATABASE}
+
+      DBT_PROFILES_DIR: /opt/airflow/project/dbt/olist_transform
+      DATA_DIR: /opt/airflow/project/data
+
+    volumes: &airflow-volumes
+      - ./airflow/dags:/opt/airflow/dags
+      - ./:/opt/airflow/project
+
+    command: version
+
+  airflow-apiserver:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: olist-airflow-apiserver
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+      airflow-init:
+        condition: service_completed_successfully
+
+    environment:
+      <<: *airflow-common-env
+
+    volumes:
+      *airflow-volumes
+
+    command: api-server
+
+    ports:
+      - "8080:8080"
+
+  airflow-scheduler:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: olist-airflow-scheduler
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+      airflow-init:
+        condition: service_completed_successfully
+      airflow-apiserver:
+        condition: service_started
+      clickhouse:
+        condition: service_healthy
+
+    environment:
+      <<: *airflow-common-env
+
+    volumes:
+      *airflow-volumes
+
+    command: scheduler
+
+  airflow-dag-processor:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: olist-airflow-dag-processor
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+      airflow-init:
+        condition: service_completed_successfully
+      airflow-apiserver:
+        condition: service_started
+
+    environment:
+      <<: *airflow-common-env
+
+    volumes:
+      *airflow-volumes
+
+    command: dag-processor
+
+volumes:
+  postgres_data:
+  clickhouse_data:

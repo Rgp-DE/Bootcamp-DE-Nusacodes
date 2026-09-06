@@ -1,0 +1,76 @@
+{{ config(
+    materialized='table',
+    alias='silver_fact_orders',
+    engine='MergeTree()',
+    order_by='order_id',
+    settings={'allow_nullable_key': 1}
+) }}
+
+-- ============================================================================
+-- Silver Model: silver_fact_orders
+-- Deskripsi    : Membersihkan data pesanan dan menambahkan kolom flag
+--                untuk memudahkan filtering di model selanjutnya.
+-- ============================================================================
+
+WITH source AS (
+    SELECT *
+    FROM {{ source('public', 'fact_order') }}
+),
+
+cleaned AS (
+    SELECT
+        order_id,
+        customer_id,
+        order_status,
+
+        parseDateTimeBestEffortOrNull(
+            nullIf(toString(order_purchase_timestamp), '')
+        ) AS order_purchase_timestamp,
+
+        parseDateTimeBestEffortOrNull(
+            nullIf(toString(order_approved_at), '')
+        ) AS order_approved_at,
+
+        parseDateTimeBestEffortOrNull(
+            nullIf(toString(order_delivered_carrier_date), '')
+        ) AS order_delivered_carrier_date,
+
+        parseDateTimeBestEffortOrNull(
+            nullIf(toString(order_delivered_customer_date), '')
+        ) AS order_delivered_customer_date,
+
+        parseDateTimeBestEffortOrNull(
+            nullIf(toString(order_estimated_delivery_date), '')
+        ) AS order_estimated_delivery_date,
+
+        -- Flag: Apakah pesanan sudah delivered?
+        CASE
+            WHEN order_status = 'delivered' THEN TRUE
+            ELSE FALSE
+        END AS is_delivered,
+
+        -- Flag: Apakah pesanan dibatalkan?
+        CASE
+            WHEN order_status IN ('canceled', 'unavailable') THEN TRUE
+            ELSE FALSE
+        END AS is_canceled,
+
+        -- Durasi konfirmasi pesanan (approved - purchase) dalam jam
+        dateDiff(
+            'second',
+
+            parseDateTimeBestEffortOrNull(
+                nullIf(toString(order_purchase_timestamp), '')
+            ),
+
+            parseDateTimeBestEffortOrNull(
+                nullIf(toString(order_approved_at), '')
+            )
+
+        ) / 3600.0 AS approval_hours
+
+    FROM source
+)
+
+SELECT *
+FROM cleaned

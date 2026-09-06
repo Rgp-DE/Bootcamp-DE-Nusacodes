@@ -1,0 +1,33 @@
+# Environment variables
+.env
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Dataset
+data/*
+!data/.gitkeep
+
+# Logs
+logs/
+**/logs/
+
+# dbt generated files
+target/
+**/target/
+dbt_packages/
+**/dbt_packages/
+
+# Airflow
+airflow/logs/
+airflow/airflow.db
+airflow/airflow.cfg
+airflow/webserver_config.py
+
+# IDE
+.vscode/
+
+# OS
+.DS_Store

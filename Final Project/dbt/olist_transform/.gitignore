@@ -1,0 +1,19 @@
+
+target/
+dbt_packages/
+logs/
+.env
+
+# Environment
+.env
+.venv/
+
+# dbt generated files
+target/
+logs/
+dbt_packages/
+*.log
+
+# Python
+__pycache__/
+*.pyc
