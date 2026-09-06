@@ -1,0 +1,30 @@
+version: 2
+
+sources:
+  - name: public
+    schema: default
+
+    tables:
+      - name: dim_customer
+        identifier: customers_dataset
+
+      - name: dim_product
+        identifier: products_dataset
+
+      - name: dim_product_category
+        identifier: product_category_name_translation
+
+      - name: dim_seller
+        identifier: sellers_dataset
+
+      - name: fact_order
+        identifier: orders_dataset
+
+      - name: fact_order_item
+        identifier: order_items_dataset
+
+      - name: fact_order_payment
+        identifier: order_payments_dataset
+
+      - name: fact_order_review
+        identifier: order_reviews_dataset

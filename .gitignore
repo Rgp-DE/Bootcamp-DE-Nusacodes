@@ -1,0 +1,30 @@
+
+# VS Code
+.vscode/
+
+# ClickHouse local session
+*.session.sql
+
+# Logs
+logs/
+**/logs/
+
+# dbt generated
+target/
+**/target/
+dbt_packages/
+**/dbt_packages/
+
+# Python environments
+.venv/
+**/.venv/
+env/
+**/env/
+
+# Environment variables
+.env
+**/.env
+
+# Python cache
+__pycache__/
+*.pyc
